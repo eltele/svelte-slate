@@ -1,7 +1,7 @@
 {
 	"name": "svelte-slate",
 	"description": "slate svelte view layer",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"license": "(MIT OR Apache-2.0)",
 	"type": "module",
 	"author": "Nathan Faucett",
@@ -42,27 +42,25 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write .",
-		"postinstall": "svelte-kit sync"
+		"format": "prettier --write ."
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "3",
-		"@sveltejs/kit": "2",
+		"@sveltejs/kit": "^2.7.0",
 		"@sveltejs/package": "2",
-		"@sveltejs/vite-plugin-svelte": "3",
+		"@sveltejs/vite-plugin-svelte": "4",
 		"@types/node": "20",
 		"@types/prismjs": "1",
 		"@typescript-eslint/eslint-plugin": "7",
 		"@typescript-eslint/parser": "7",
 		"eslint": "8",
 		"eslint-config-prettier": "9",
-		"eslint-plugin-svelte3": "4",
 		"lorem-ipsum": "2",
 		"prettier": "3",
 		"prettier-plugin-svelte": "3",
 		"slate": "0",
 		"slate-history": "0",
-		"svelte": "4",
+		"svelte": "5",
 		"svelte-check": "3",
 		"svelte-icons": "2",
 		"svelte-portal": "2",
@@ -74,12 +72,13 @@
 	},
 	"peerDependencies": {
 		"slate": "0",
-		"svelte": ">=3",
+		"svelte": ">=5",
 		"tslib": "2"
 	},
 	"dependencies": {
 		"@aicacia/debounce": "0",
 		"fast-equals": "5",
 		"scroll-into-view-if-needed": "3"
-	}
+	},
+	"packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee"
 }

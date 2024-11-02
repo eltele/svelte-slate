@@ -1,6 +1,4 @@
-<svelte:options immutable />
-
-<script lang="ts" context="module">
+<script lang="ts" module>
 	export interface ILeafProps extends HTMLAttributes<HTMLElement> {
 		leaf: SlateText;
 	}
@@ -11,6 +9,8 @@
 </script>
 
 <script lang="ts">
+	import { run } from 'svelte/legacy';
+
 	import { CAN_USE_DOM } from '../environment';
 	import { PLACEHOLDER_SYMBOL } from '../weakMaps';
 	import type { Text as SlateText, Element as SlateElement } from 'slate';
@@ -20,27 +20,34 @@
 	import { LEAF_CONTEXT_KEY, PLACEHOLDER_CONTEXT_KEY } from './Editable.svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 
-	export let isLast: boolean;
-	export let leaf: SlateText & { placeholder?: string };
-	export let parent: SlateElement;
-	export let text: SlateText;
+	interface Props {
+		isLast: boolean;
+		leaf: SlateText & { placeholder?: string };
+		parent: SlateElement;
+		text: SlateText;
+	}
+
+	let { isLast, leaf, parent, text }: Props = $props();
 
 	const LeafContext = getFromContext(LEAF_CONTEXT_KEY);
 	const PlaceholderContext = getFromContext(PLACEHOLDER_CONTEXT_KEY);
 
-	$: Leaf = $LeafContext;
-	$: Placeholder = $PlaceholderContext;
+	let Leaf = $derived($LeafContext);
+	let Placeholder = $derived($PlaceholderContext);
 
-	let clientHeight: number;
-	let currentClientHeight: number;
-	$: if (currentClientHeight !== clientHeight && CAN_USE_DOM) {
-		const editorEl = document.querySelector<HTMLDivElement>('[data-svelte-editor="true"]');
+	let clientHeight: number | undefined = $state();
+	let currentClientHeight: number | undefined = $state();
 
-		if (editorEl) {
-			editorEl.style.minHeight = `${clientHeight}px`;
+	$effect.pre(() => {
+		if (currentClientHeight !== clientHeight && CAN_USE_DOM) {
+			const editorEl = document.querySelector<HTMLDivElement>('[data-svelte-editor="true"]');
+
+			if (editorEl) {
+				editorEl.style.minHeight = `${clientHeight}px`;
+			}
+			currentClientHeight = clientHeight;
 		}
-		currentClientHeight = clientHeight;
-	}
+	});
 
 	onDestroy(() => {
 		if (CAN_USE_DOM) {
@@ -53,8 +60,9 @@
 	});
 </script>
 
-<svelte:component this={Leaf} {leaf}
-	>{#if PLACEHOLDER_SYMBOL in leaf}<svelte:component this={Placeholder} bind:clientHeight
-			>{leaf.placeholder}</svelte:component
-		>{/if}<String {isLast} {leaf} {parent} {text} /></svelte:component
->
+<Leaf {leaf}>
+	{#if PLACEHOLDER_SYMBOL in leaf}
+		<Placeholder bind:clientHeight>{leaf.placeholder}</Placeholder>
+	{/if}
+	<String {isLast} {leaf} {parent} {text} />
+</Leaf>

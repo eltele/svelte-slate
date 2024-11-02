@@ -1,5 +1,3 @@
-<svelte:options immutable />
-
 <script lang="ts">
 	import { withSvelte } from '$lib';
 	import { createEditor } from 'slate';
@@ -8,11 +6,11 @@
 	import Slate from '$lib/components/Slate.svelte';
 
 	const editor = withHistory(withSvelte(createEditor()));
-	let value = [
+	let value = $state([
 		{
 			children: [{ text: 'This is editable.' }]
 		}
-	];
+	]);
 </script>
 
 <p>

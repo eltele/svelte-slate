@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
 	import { createContextKey, getFromContext } from '../utils';
 
 	const SELECTED_CONTEXT_KEY = createContextKey<boolean>();
@@ -9,6 +9,8 @@
 </script>
 
 <script lang="ts">
+	import { run } from 'svelte/legacy';
+
 	import type { Ancestor, Element as SlateElement, Path, Selection } from 'slate';
 	import { Range, Editor } from 'slate';
 	import InternalElement from './InternalElement.svelte';
@@ -17,58 +19,59 @@
 	import { createContext, isDecoratorRangeListEqual, isSelectionEqual } from '../utils';
 	import { getDecorateContext, getEditor } from './Slate.svelte';
 
-	export let parent: Ancestor;
-	export let element: SlateElement;
-	export let path: Path;
-	export let index: number;
-	export let decorations: Range[];
-	export let selection: Selection = null;
+	interface Props {
+		parent: Ancestor;
+		element: SlateElement;
+		path: Path;
+		index: number;
+		decorations: Range[];
+		selection?: Selection;
+	}
+
+	let { parent, element, path, index, decorations, selection = null }: Props = $props();
 
 	const decorateContext = getDecorateContext();
 	const selectedContext = createContext(SELECTED_CONTEXT_KEY, false);
 	const editor = getEditor();
 
-	let currentIndex = index;
-	$: if (currentIndex !== index) {
-		currentIndex = index;
-	}
-	let currentParent = parent;
-	$: if (currentParent !== parent) {
-		currentParent = parent;
-	}
-	let currentElement = element;
-	$: if (currentElement !== element) {
-		currentElement = element;
-	}
-	let currentPath = path;
-	$: if (currentPath !== path) {
-		currentPath = path;
-	}
-	let currentDecorations = decorations;
-	$: if (!isDecoratorRangeListEqual(currentDecorations, decorations)) {
-		currentDecorations = decorations;
-	}
-	let currentSelection = selection;
-	$: if (!isSelectionEqual(currentSelection, selection)) {
-		currentSelection = selection;
-	}
+	let currentIndex = $derived(index);
+	let currentParent = $derived(parent);
+	let currentElement = $derived(element);
+	let currentPath = $derived(path);
+	let currentDecorations = $state(decorations);
 
-	$: NODE_TO_INDEX.set(currentElement, currentIndex);
-	$: NODE_TO_PARENT.set(currentElement, currentParent);
-	$: childPath = currentPath.concat(currentIndex);
-	$: range = Editor.range(editor, childPath);
-	$: decorate = $decorateContext;
-	$: childDecorations = getChildDecorations(
-		decorate([currentElement, childPath]),
-		range,
-		currentDecorations
+	$effect.pre(() => {
+		if (!isDecoratorRangeListEqual(currentDecorations, decorations)) {
+			currentDecorations = decorations;
+		}
+	});
+	let currentSelection = $state(selection);
+	$effect.pre(() => {
+		if (!isSelectionEqual(currentSelection, selection)) {
+			currentSelection = selection;
+		}
+	});
+
+	$effect.pre(() => {
+		NODE_TO_INDEX.set(currentElement, currentIndex);
+	});
+	$effect.pre(() => {
+		NODE_TO_PARENT.set(currentElement, currentParent);
+	});
+	let childPath = $derived(currentPath.concat(currentIndex));
+	let range = $derived(Editor.range(editor, childPath));
+	let decorate = $derived($decorateContext);
+	let childDecorations = $derived(
+		getChildDecorations(decorate([currentElement, childPath]), range, currentDecorations)
 	);
-	$: childSelection = currentSelection && Range.intersection(range, currentSelection);
-	$: selectedContext.set(!!childSelection);
+	let childSelection = $derived(currentSelection && Range.intersection(range, currentSelection));
+
+	$effect.pre(() => {
+		selectedContext.set(!!childSelection);
+	});
 </script>
 
-<svelte:component
-	this={InternalElement}
+<InternalElement
 	decorations={childDecorations}
 	element={currentElement}
 	selection={childSelection}

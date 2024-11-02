@@ -1,31 +1,27 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
+	import { isHotkey } from '$lib/isHotkey';
+	import { debounce } from '@aicacia/debounce';
+	import scrollIntoView from 'scroll-into-view-if-needed';
 	import {
 		Editor,
-		Node as SlateNode,
-		Element as SlateElement,
 		Path,
 		Range,
+		Element as SlateElement,
+		Node as SlateNode,
 		Transforms,
 		type BaseElement
 	} from 'slate';
-	import { afterUpdate } from 'svelte';
 	import { onMount, tick } from 'svelte';
-	import { debounce } from '@aicacia/debounce';
-	import scrollIntoView from 'scroll-into-view-if-needed';
+	import type { KeyboardEventHandler } from 'svelte/elements';
 	import { direction } from '../direction';
-	import Children from './Children.svelte';
-	import DefaultElement from './DefaultElement.svelte';
-	import DefaultLeaf from './DefaultLeaf.svelte';
-	import DefaultPlaceholder from './DefaultPlaceholder.svelte';
-	import { getEditor, getEventsContext, handleEvent } from './Slate.svelte';
 	import {
-		defaultDecorate,
-		getDecorateContext,
-		getEditorContext,
-		getFocusedContext,
-		getReadOnlyContext,
-		getSelectionContext
-	} from './Slate.svelte';
+		DOMNode,
+		DOMRange,
+		getDefaultView,
+		isDOMElement,
+		isDOMNode,
+		isPlainTextOnlyPaste
+	} from '../dom';
 	import {
 		HAS_BEFORE_INPUT_SUPPORT,
 		IS_CHROME,
@@ -36,8 +32,6 @@
 		IS_SAFARI
 	} from '../environment';
 	import hotkeys from '../hotkeys';
-	import { DOMNode, DOMRange, getDefaultView, isDOMElement, isPlainTextOnlyPaste } from '../dom';
-	import { isDOMNode } from '../dom';
 	import {
 		createContext,
 		createContextKey,
@@ -55,7 +49,6 @@
 		toSlateRange,
 		type ISvelteComponent
 	} from '../utils';
-	import type { ISvelteEditor } from '../withSvelte';
 	import {
 		EDITOR_TO_ELEMENT,
 		EDITOR_TO_WINDOW,
@@ -65,11 +58,25 @@
 		NODE_TO_ELEMENT,
 		PLACEHOLDER_SYMBOL
 	} from '../weakMaps';
+	import type { ISvelteEditor } from '../withSvelte';
+	import Children from './Children.svelte';
+	import DefaultElement from './DefaultElement.svelte';
+	import DefaultLeaf from './DefaultLeaf.svelte';
+	import DefaultPlaceholder from './DefaultPlaceholder.svelte';
 	import type { IElementProps } from './InternalElement.svelte';
 	import type { ILeafProps, IPlaceholderProps } from './InternalLeaf.svelte';
-	import { getContainerContext } from './Slate.svelte';
-	import { isHotkey } from '$lib/isHotkey';
-	import type { KeyboardEventHandler } from 'svelte/elements';
+	import {
+		defaultDecorate,
+		getContainerContext,
+		getDecorateContext,
+		getEditor,
+		getEditorContext,
+		getEventsContext,
+		getFocusedContext,
+		getReadOnlyContext,
+		getSelectionContext,
+		handleEvent
+	} from './Slate.svelte';
 
 	export const ELEMENT_CONTEXT_KEY = createContextKey<ISvelteComponent<IElementProps>>();
 	export const LEAF_CONTEXT_KEY = createContextKey<ISvelteComponent<ILeafProps>>();
@@ -121,32 +128,68 @@
 </script>
 
 <script lang="ts">
-	export let Element: ISvelteComponent<IElementProps> = DefaultElement;
-	export let Leaf: ISvelteComponent<ILeafProps> = DefaultLeaf;
-	export let Placeholder: ISvelteComponent<IPlaceholderProps> = DefaultPlaceholder;
-	export let placeholder: string | undefined = undefined;
-	export let readOnly = false;
-	export let autoFocus = false;
-	export let decorate = defaultDecorate;
-	export let scrollSelectionIntoView = defaultScrollSelectionIntoView;
-	export let ref: HTMLDivElement | undefined = undefined;
-	export let spellcheck = true;
-	export let autocorrect: string = 'true';
-	export let autocapitalize: string = 'true';
-	export let onKeyDown: KeyboardEventHandler<HTMLElement> = () => undefined;
+	interface Props {
+		Element?: ISvelteComponent<IElementProps>;
+		Leaf?: ISvelteComponent<ILeafProps>;
+		Placeholder?: ISvelteComponent<IPlaceholderProps>;
+		placeholder?: string | undefined;
+		readOnly?: boolean;
+		autoFocus?: boolean;
+		decorate?: any;
+		scrollSelectionIntoView?: any;
+		ref?: HTMLDivElement | undefined;
+		spellcheck?: boolean;
+		autocorrect?: string;
+		autocapitalize?:
+			| 'characters'
+			| 'off'
+			| 'on'
+			| 'none'
+			| 'sentences'
+			| 'words'
+			| null
+			| undefined;
+		onKeyDown?: KeyboardEventHandler<HTMLElement>;
+		[key: string]: any;
+	}
+
+	let {
+		Element = DefaultElement,
+		Leaf = DefaultLeaf,
+		Placeholder = DefaultPlaceholder,
+		placeholder = undefined,
+		readOnly = false,
+		autoFocus = false,
+		decorate = defaultDecorate,
+		scrollSelectionIntoView = defaultScrollSelectionIntoView,
+		ref = $bindable(undefined),
+		spellcheck = true,
+		autocorrect = 'true',
+		autocapitalize = 'on',
+		onKeyDown = () => undefined,
+		...rest
+	}: Props = $props();
 
 	const containerContext = getContainerContext();
-	$: containerContext.set(ref);
+	$effect(() => {
+		containerContext.set(ref);
+	});
 
 	const ElementContext = createContext(ELEMENT_CONTEXT_KEY, Element);
 	const LeafContext = createContext(LEAF_CONTEXT_KEY, Leaf);
 	const PlaceholderContext = createContext(PLACEHOLDER_CONTEXT_KEY, Placeholder);
 
-	$: ElementContext.set(Element);
-	$: LeafContext.set(Leaf);
-	$: PlaceholderContext.set(Placeholder);
+	$effect(() => {
+		ElementContext.set(Element);
+	});
+	$effect(() => {
+		LeafContext.set(Leaf);
+	});
+	$effect(() => {
+		PlaceholderContext.set(Placeholder);
+	});
 
-	const editor = getEditor();
+	const editor = $state(getEditor());
 	const editorContext = getEditorContext();
 	const readOnlyContext = getReadOnlyContext();
 	const focusedContext = getFocusedContext();
@@ -154,58 +197,74 @@
 	const eventsContext = getEventsContext();
 	const selectionContext = getSelectionContext();
 	const deferredOperations: DeferredOperation[] = [];
-	const state: {
+	const theState: {
 		isComposing: boolean;
 		hasInsertPrefixInCompositon: boolean;
 		updateSelectionTimeoutId: ReturnType<typeof setTimeout> | null;
 		isDraggingInternally: boolean;
 		latestElement: Element | null;
 		readOnly: boolean;
-	} = {
+	} = $state({
 		isComposing: false,
 		hasInsertPrefixInCompositon: true,
 		updateSelectionTimeoutId: null,
 		isDraggingInternally: false,
 		latestElement: null,
 		readOnly
-	};
+	});
 
-	$: IS_READ_ONLY.set(editor, readOnly);
-	$: readOnlyContext.set(readOnly);
-	$: state.readOnly = readOnly;
-	$: decorateContext.set(decorate);
+	$effect(() => {
+		IS_READ_ONLY.set(editor, readOnly);
+	});
+	$effect(() => {
+		readOnlyContext.set(readOnly);
+	});
+	$effect(() => {
+		theState.readOnly = readOnly;
+	});
+	$effect(() => {
+		decorateContext.set(decorate);
+	});
 
-	let decorations: Range[] = [];
-	$: if (
-		$editorContext.children.length === 1 &&
-		Array.from(SlateNode.texts($editorContext)).length === 1 &&
-		SlateNode.string($editorContext) === '' &&
-		!state.isComposing
-	) {
-		const start = Editor.start(editor, []);
-		decorations = [
-			...decorate([editor, []]),
-			{
-				[PLACEHOLDER_SYMBOL]: true,
-				placeholder,
-				anchor: start,
-				focus: start
-			} as any
-		];
-	} else if (decorations.length) {
-		decorations = decorate([editor, []]);
-	}
-
-	let prevAutoFocus: boolean;
-	$: if (prevAutoFocus !== autoFocus && ref) {
-		if (autoFocus) {
-			ref.focus();
+	let decorations: Range[] = $state([]);
+	$effect(() => {
+		if (
+			$editorContext.children.length === 1 &&
+			Array.from(SlateNode.texts($editorContext)).length === 1 &&
+			SlateNode.string($editorContext) === '' &&
+			!theState.isComposing
+		) {
+			const start = Editor.start(editor, []);
+			decorations = [
+				...decorate([editor, []]),
+				{
+					[PLACEHOLDER_SYMBOL]: true,
+					placeholder,
+					anchor: start,
+					focus: start
+				} as any
+			];
+		} else if (decorations.length) {
+			decorations = decorate([editor, []]);
 		}
-		prevAutoFocus = autoFocus;
-	}
+	});
+
+	let prevAutoFocus: boolean = $state(false);
+	$effect(() => {
+		if (prevAutoFocus !== autoFocus && ref) {
+			if (autoFocus) {
+				ref.focus();
+			}
+			prevAutoFocus = autoFocus;
+		}
+	});
 
 	function onDOMSelectionChange() {
-		if (state.isComposing || state.isDraggingInternally || state.updateSelectionTimeoutId) {
+		if (
+			theState.isComposing ||
+			theState.isDraggingInternally ||
+			theState.updateSelectionTimeoutId
+		) {
 			debouncedOnDOMSelectionChange();
 		} else {
 			const root = findDocumentOrShadowRoot(editor) as Document;
@@ -213,7 +272,7 @@
 			const domSelection = root.getSelection();
 
 			if (root.activeElement === el) {
-				state.latestElement = root.activeElement;
+				theState.latestElement = root.activeElement;
 				IS_FOCUSED.set(editor, true);
 				focusedContext.set(true);
 			} else {
@@ -240,7 +299,7 @@
 					suppressThrow: true
 				});
 				if (range) {
-					Transforms.select(editor, range);
+					Transforms.select(editor, $state.snapshot(range));
 					return;
 				}
 			}
@@ -279,7 +338,7 @@
 		const root = findDocumentOrShadowRoot(editor) as Document;
 		const domSelection = root?.getSelection();
 
-		if (state.isComposing || !domSelection || !isFocused(editor)) {
+		if (theState.isComposing || !domSelection || !isFocused(editor)) {
 			return;
 		}
 
@@ -341,28 +400,30 @@
 			domSelection.removeAllRanges();
 		}
 
-		if (state.updateSelectionTimeoutId) {
-			clearTimeout(state.updateSelectionTimeoutId);
+		if (theState.updateSelectionTimeoutId) {
+			clearTimeout(theState.updateSelectionTimeoutId);
 		}
 		let timeoutId: number = setTimeout(() => {
 			if (newDomRange && IS_FIREFOX) {
 				const el = toDOMNode(editor, editor);
 				el.focus();
 			}
-			Object.assign(state, {
+			Object.assign(theState, {
 				updateSelectionTimeoutId: null
 			});
 		}) as any;
 
-		Object.assign(state, {
+		Object.assign(theState, {
 			updateSelectionTimeoutId: timeoutId
 		});
 	}
 
-	afterUpdate(() => tick().then(onUpdate));
+	$effect(() => {
+		tick().then(onUpdate);
+	});
 
 	function onBeforeInput(event: InputEvent & { currentTarget: EventTarget & HTMLElement }) {
-		if (!state.readOnly && hasEditableTarget(editor, event.target)) {
+		if (!theState.readOnly && hasEditableTarget(editor, event.target)) {
 			const type = event.inputType;
 			const data = (event as any).dataTransfer || event.data || undefined;
 
@@ -506,8 +567,8 @@
 					}
 
 					if (type === 'insertFromComposition') {
-						if (state.isComposing) {
-							state.isComposing = false;
+						if (theState.isComposing) {
+							theState.isComposing = false;
 						}
 					}
 					if (data?.constructor.name === 'DataTransfer') {
@@ -533,7 +594,7 @@
 	}
 
 	function onKeyDownInternal(event: KeyboardEvent & { currentTarget: EventTarget & HTMLElement }) {
-		if (!state.readOnly && !state.isComposing && hasEditableTarget(editor, event.target)) {
+		if (!theState.readOnly && !theState.isComposing && hasEditableTarget(editor, event.target)) {
 			const returnValue = handleEvent(eventsContext, 'onKeyDown', event);
 			if (returnValue === false || event.cancelBubble) {
 				return returnValue;
@@ -710,14 +771,14 @@
 
 	function onFocus(event: FocusEvent) {
 		if (
-			!state.readOnly &&
-			!state.updateSelectionTimeoutId &&
+			!theState.readOnly &&
+			!theState.updateSelectionTimeoutId &&
 			hasEditableTarget(editor, event.target)
 		) {
 			const el = toDOMNode(editor, editor);
 			const root = findDocumentOrShadowRoot(editor);
 
-			state.latestElement = root.activeElement;
+			theState.latestElement = root.activeElement;
 
 			if (IS_FIREFOX && event.target !== el) {
 				el.focus();
@@ -733,15 +794,15 @@
 
 	function onBlur(event: FocusEvent) {
 		if (
-			state.readOnly ||
-			state.updateSelectionTimeoutId ||
+			theState.readOnly ||
+			theState.updateSelectionTimeoutId ||
 			!hasEditableTarget(editor, event.target)
 		) {
 			return;
 		}
 
 		const root = findDocumentOrShadowRoot(editor);
-		if (state.latestElement === root.activeElement) {
+		if (theState.latestElement === root.activeElement) {
 			return;
 		}
 
@@ -776,7 +837,7 @@
 	}
 
 	function onClick(event: MouseEvent & { currentTarget: EventTarget & HTMLElement }) {
-		if (!state.readOnly && hasTarget(editor, event.target) && isDOMNode(event.target)) {
+		if (!theState.readOnly && hasTarget(editor, event.target) && isDOMNode(event.target)) {
 			const node = toSlateNode(event.target);
 			const path = findPath(node);
 
@@ -802,7 +863,7 @@
 
 	function onCompositionEnd(event: Event) {
 		if (hasEditableTarget(editor, event.target)) {
-			state.isComposing = false;
+			theState.isComposing = false;
 			const eventData = (event as any).data;
 
 			if (!IS_SAFARI && !IS_FIREFOX_LEGACY && !IS_IOS && !IS_QQBROWSER && eventData) {
@@ -812,8 +873,8 @@
 			if (editor.selection && Range.isCollapsed(editor.selection)) {
 				const leafPath = editor.selection.anchor.path;
 				const currentTextNode = SlateNode.leaf(editor, leafPath);
-				if (state.hasInsertPrefixInCompositon) {
-					state.hasInsertPrefixInCompositon = false;
+				if (theState.hasInsertPrefixInCompositon) {
+					theState.hasInsertPrefixInCompositon = false;
 					Editor.withoutNormalizing(editor, () => {
 						const text = currentTextNode.text.replace(/^\uFEFF/, '');
 						Transforms.delete(editor, {
@@ -831,7 +892,7 @@
 
 	function onCompositionUpdate(event: Event) {
 		if (hasEditableTarget(editor, event.target)) {
-			state.isComposing = true;
+			theState.isComposing = true;
 
 			return handleEvent(eventsContext, 'onCompositionUpdate', event);
 		}
@@ -859,7 +920,7 @@
 					}
 				}
 				if (editor.marks) {
-					state.hasInsertPrefixInCompositon = true;
+					theState.hasInsertPrefixInCompositon = true;
 					Transforms.insertNodes(
 						editor,
 						{
@@ -878,7 +939,7 @@
 	}
 
 	function onPaste(event: ClipboardEvent) {
-		if (!state.readOnly && hasEditableTarget(editor, event.target)) {
+		if (!theState.readOnly && hasEditableTarget(editor, event.target)) {
 			if (!HAS_BEFORE_INPUT_SUPPORT || isPlainTextOnlyPaste(event)) {
 				event.preventDefault();
 				if (event.clipboardData) {
@@ -900,7 +961,7 @@
 	}
 
 	function onCut(event: ClipboardEvent) {
-		if (!state.readOnly && hasEditableTarget(editor, event.target)) {
+		if (!theState.readOnly && hasEditableTarget(editor, event.target)) {
 			event.preventDefault();
 			editor.setFragmentData((event as any).clipboardData);
 
@@ -932,7 +993,7 @@
 	}
 
 	function onDragStart(event: Event) {
-		if (!state.readOnly && hasTarget(editor, event.target)) {
+		if (!theState.readOnly && hasTarget(editor, event.target)) {
 			const node = toSlateNode(event.target);
 			const path = findPath(node);
 			const voidMatch =
@@ -944,7 +1005,7 @@
 				Transforms.select(editor, range);
 			}
 
-			state.isDraggingInternally = true;
+			theState.isDraggingInternally = true;
 
 			editor.setFragmentData((event as any).dataTransfer);
 
@@ -953,7 +1014,7 @@
 	}
 
 	function onDrop(event: DragEvent) {
-		if (!state.readOnly && hasTarget(editor, event.target)) {
+		if (!theState.readOnly && hasTarget(editor, event.target)) {
 			event.preventDefault();
 
 			const draggedRange = editor.selection;
@@ -962,7 +1023,7 @@
 
 			Transforms.select(editor, range);
 
-			if (state.isDraggingInternally) {
+			if (theState.isDraggingInternally) {
 				if (
 					draggedRange &&
 					!Range.equals(draggedRange, range) &&
@@ -973,7 +1034,7 @@
 					});
 				}
 
-				state.isDraggingInternally = false;
+				theState.isDraggingInternally = false;
 			}
 
 			editor.insertData(data);
@@ -987,8 +1048,8 @@
 	}
 
 	function onDragEnd(event: Event) {
-		if (!state.readOnly && state.isDraggingInternally && hasTarget(editor, event.target)) {
-			state.isDraggingInternally = false;
+		if (!theState.readOnly && theState.isDraggingInternally && hasTarget(editor, event.target)) {
+			theState.isDraggingInternally = false;
 
 			return handleEvent(eventsContext, 'onDragEnd', event);
 		}
@@ -996,33 +1057,33 @@
 </script>
 
 <div
-	{...$$restProps}
+	{...rest}
 	bind:this={ref}
-	role={state.readOnly ? undefined : 'textbox'}
+	role={theState.readOnly ? undefined : 'textbox'}
 	{spellcheck}
 	{autocorrect}
 	{autocapitalize}
 	data-svelte-editor
 	data-slate-node="value"
-	contenteditable={!state.readOnly}
-	on:beforeinput={onBeforeInput}
-	on:keydown={onKeyDownInternal}
-	on:keyup={onKeyUp}
-	on:keypress={onKeyPress}
-	on:input={onInput}
-	on:focus={onFocus}
-	on:blur={onBlur}
-	on:click={onClick}
-	on:compositionend={onCompositionEnd}
-	on:compositionupdate={onCompositionUpdate}
-	on:compositionstart={onCompositionStart}
-	on:paste={onPaste}
-	on:copy={onCopy}
-	on:cut={onCut}
-	on:dragover={onDragOver}
-	on:dragstart={onDragStart}
-	on:drop={onDrop}
-	on:dragend={onDragEnd}
+	contenteditable={!theState.readOnly}
+	onbeforeinput={onBeforeInput}
+	onkeydown={onKeyDownInternal}
+	onkeyup={onKeyUp}
+	onkeypress={onKeyPress}
+	oninput={onInput}
+	onfocus={onFocus}
+	onblur={onBlur}
+	onclick={onClick}
+	oncompositionend={onCompositionEnd}
+	oncompositionupdate={onCompositionUpdate}
+	oncompositionstart={onCompositionStart}
+	onpaste={onPaste}
+	oncopy={onCopy}
+	oncut={onCut}
+	ondragover={onDragOver}
+	ondragstart={onDragStart}
+	ondrop={onDrop}
+	ondragend={onDragEnd}
 >
 	<Children node={$editorContext} selection={$selectionContext} {decorations} />
 </div>

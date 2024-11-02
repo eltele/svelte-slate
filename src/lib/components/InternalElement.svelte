@@ -46,7 +46,7 @@
 	$: isInline = editor.isInline(element);
 	$: key = findKey(element);
 
-	let dir: string;
+	let dir: 'rtl' | 'ltr' | undefined;
 	$: if (!isInline && Editor.hasInlines(editor, element)) {
 		const d = direction(Node.string(element));
 
@@ -78,25 +78,20 @@
 	}
 </script>
 
-<svelte:component this={Element} bind:ref {isVoid} {isInline} {contenteditable} {element} {dir}
-	>{#if isVoid && !readOnly}{#if isInline}<span data-slate-spacer
-				><svelte:component
-					this={Text}
-					decorations={[]}
-					isLast={false}
-					parent={element}
-					text={voidText}
-				/></span
-			>{:else}<div data-slate-spacer>
-				<svelte:component
-					this={Text}
-					decorations={[]}
-					isLast={false}
-					parent={element}
-					text={voidText}
-				/>
-			</div>{/if}{:else}<Children node={element} {decorations} {selection} />{/if}</svelte:component
->
+<Element bind:ref {isVoid} {isInline} {contenteditable} {element} {dir}
+	>{#if isVoid && !readOnly}{#if isInline}
+			<span data-slate-spacer>
+				<Text decorations={[]} isLast={false} parent={element} text={voidText} />
+			</span>
+		{:else}
+			<div data-slate-spacer>
+				<Text decorations={[]} isLast={false} parent={element} text={voidText} />
+			</div>
+		{/if}
+	{:else}
+		<Children node={element} {decorations} {selection} />
+	{/if}
+</Element>
 
 <style>
 	div,

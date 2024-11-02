@@ -1,11 +1,9 @@
-<svelte:options immutable />
-
-<script lang="ts" context="module">
+<script lang="ts" module>
 	import type { ISvelteEditor } from '../withSvelte';
 	import type { Descendant, Range, NodeEntry, Selection, BaseSelection } from 'slate';
 	import { get, type Writable } from 'svelte/store';
 	import { getFromContext, createContextKey, isSelectionEqual, createContext } from '../utils';
-	import { onMount, createEventDispatcher } from 'svelte';
+	import { onMount, createEventDispatcher, type Snippet } from 'svelte';
 	import { EDITOR_TO_ON_CHANGE } from '../weakMaps';
 	import type { EventHandler, KeyboardEventHandler, MouseEventHandler } from 'svelte/elements';
 
@@ -122,9 +120,19 @@
 </script>
 
 <script lang="ts">
-	export let editor: ISvelteEditor;
-	export let value: Descendant[] = editor.children;
-	export let selection = editor.selection;
+	interface Props {
+		editor: ISvelteEditor;
+		value?: Descendant[];
+		selection?: any;
+		children?: Snippet;
+	}
+
+	let {
+		editor,
+		value = $bindable(editor.children),
+		selection = $bindable(editor.selection),
+		children
+	}: Props = $props();
 
 	const dispatch = createEventDispatcher<{ value: Descendant[]; selection: BaseSelection }>();
 
@@ -151,31 +159,35 @@
 	}
 	EDITOR_TO_ON_CHANGE.set(editor, onChange);
 
-	let currentEditor = editor;
-	$: if (currentEditor !== editor) {
-		currentEditor = editor;
-		EDITOR_TO_ON_CHANGE.set(editor, onChange);
-		editorContext.set(editor);
-	}
+	let currentEditor = $derived(editor);
 
-	let currentValue: Descendant[];
-	$: if (currentValue !== value) {
+	$effect.pre(() => {
+		console.log('running 1');
+		EDITOR_TO_ON_CHANGE.set(currentEditor, onChange);
+		editorContext.set(currentEditor);
+	});
+
+	let currentValue = $derived(value);
+	$effect.pre(() => {
+		console.log('running 2');
 		editorContext.update((editor) => {
-			editor.children = value;
+			editor.children = currentValue;
 			return editor;
 		});
-		currentValue = value;
-		valueContext.set(value);
-		dispatch('value', value);
-	}
+		valueContext.set(currentValue);
+		dispatch('value', currentValue);
+	});
 
-	let currentSelection: Selection;
-	$: if (!isSelectionEqual(currentSelection, selection)) {
-		selectionContext.set(selection);
-		editorContext.set(editor);
-		currentSelection = selection;
-		dispatch('selection', selection);
-	}
+	let currentSelection: Selection | null = $state(null);
+	$effect.pre(() => {
+		if (!isSelectionEqual(currentSelection, selection)) {
+			console.log('running 3');
+			selectionContext.set(selection);
+			editorContext.set(editor);
+			currentSelection = selection;
+			dispatch('selection', selection);
+		}
+	});
 </script>
 
-<slot />
+{@render children?.()}

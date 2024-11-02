@@ -1,10 +1,17 @@
-<svelte:options immutable />
-
 <script lang="ts">
-	export let clientHeight: number | undefined = undefined;
+	import type { Snippet } from 'svelte';
+
+	interface Props {
+		clientHeight?: number | undefined;
+		children?: Snippet;
+	}
+
+	let { clientHeight = $bindable(undefined), children }: Props = $props();
 </script>
 
-<span bind:clientHeight data-slate-placeholder="true" contenteditable="false"><slot /></span>
+<span bind:clientHeight data-slate-placeholder="true" contenteditable="false">
+	{@render children?.()}
+</span>
 
 <style>
 	span {

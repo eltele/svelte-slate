@@ -1,33 +1,44 @@
-<svelte:options immutable />
-
 <script lang="ts">
 	import type { Element } from 'slate';
 
-	// svelte-ignore unused-export-let
-	export let element: Element;
-	export let isInline: boolean;
-	export let isVoid: boolean;
-	export let contenteditable: boolean;
-	export let ref: HTMLElement | undefined = undefined;
-	export let dir: 'rtl' | 'ltr' | undefined = undefined;
+	interface Props {
+		// svelte-ignore unused-export-let
+		element: Element;
+		isInline: boolean;
+		isVoid: boolean;
+		contenteditable: boolean | undefined | null;
+		ref?: HTMLElement | undefined;
+		dir?: 'rtl' | 'ltr' | undefined;
+		children?: import('svelte').Snippet;
+	}
+
+	let {
+		element,
+		isInline,
+		isVoid,
+		contenteditable,
+		ref = $bindable(undefined),
+		dir = undefined,
+		children
+	}: Props = $props();
 </script>
 
-{#if isInline}<span
+{#if isInline}
+	<span
 		bind:this={ref}
 		data-slate-node="element"
 		data-slate-inline={isInline}
 		data-slate-void={isVoid}
 		{dir}
-		{contenteditable}><slot /></span
-	>{:else}<div
-		bind:this={ref}
-		data-slate-node="element"
-		data-slate-void={isVoid}
-		{dir}
 		{contenteditable}
 	>
-		<slot />
-	</div>{/if}
+		{@render children?.()}
+	</span>
+{:else}
+	<div bind:this={ref} data-slate-node="element" data-slate-void={isVoid} {dir} {contenteditable}>
+		{@render children?.()}
+	</div>
+{/if}
 
 <style>
 	span,

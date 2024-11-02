@@ -38,11 +38,9 @@ import {
 } from './dom';
 import { IS_CHROME, IS_FIREFOX } from './environment';
 import type { ISvelteEditor } from './withSvelte';
-import type { SvelteComponentTyped } from 'svelte';
+import type { Component, SvelteComponentTyped } from 'svelte';
 
-export type ISvelteComponent<T extends Record<string, any> = Record<string, any>> = new (
-	...args: any[]
-) => SvelteComponentTyped<T>;
+export type ISvelteComponent<T extends Record<string, any> = Record<string, any>> = Component<T>;
 
 export function getWindow(editor: ISvelteEditor): Window {
 	const window = EDITOR_TO_WINDOW.get(editor);
@@ -187,7 +185,7 @@ export function hasDOMNode(
 			? true
 			: (typeof targetEl.isContentEditable === 'boolean' &&
 					targetEl.closest('[contenteditable="false"]') === editorEl) ||
-			  !!targetEl.getAttribute('data-slate-zero-width'))
+				!!targetEl.getAttribute('data-slate-zero-width'))
 	);
 }
 
@@ -363,7 +361,7 @@ export function toSlatePoint<T extends boolean>(
 	// Handle blockquotes and other elements whose direct parent is the editor itself.
 	const nearestNodeIsDOMElement =
 		nearestNode instanceof DOMElement && nearestNode.getAttribute('data-slate-node') === 'element';
-	const parentNode = nearestNodeIsDOMElement ? nearestNode : nearestNode.parentNode as DOMElement;
+	const parentNode = nearestNodeIsDOMElement ? nearestNode : (nearestNode.parentNode as DOMElement);
 	let textNode: DOMElement | null = null;
 	let offset = 0;
 
@@ -496,7 +494,7 @@ export function toSlateRange<T extends boolean>(
 		: toSlatePoint(editor, [focusNode, focusOffset], {
 				exactMatch,
 				suppressThrow
-		  });
+			});
 	if (!focus) {
 		return null as T extends true ? Range | null : Range;
 	}

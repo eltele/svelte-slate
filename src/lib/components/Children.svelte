@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
 	import { Range } from 'slate';
 
 	export function getChildDecorations(
@@ -25,36 +25,38 @@
 	import ChildElement from './ChildElement.svelte';
 	import ChildText from './ChildText.svelte';
 
-	export let node: Ancestor;
-	export let decorations: Range[];
-	export let selection: Selection = null;
+	interface Props {
+		node: Ancestor;
+		decorations: Range[];
+		selection: Selection;
+	}
+
+	let { node, decorations, selection = null }: Props = $props();
 
 	const editor = getEditor();
 
-	let currentNode = node;
-	$: if (currentNode !== node || node === editor) {
-		currentNode = node;
-	}
+	let currentNode = $derived(node);
 
-	$: path = findPath(currentNode);
-	$: isLeafBlock =
+	// $effect(() => {
+	// 	if (currentNode !== node || node === editor) {
+	// 		console.log('running 3');
+	// 		currentNode = node;
+	// 	}
+	// });
+
+	const path = $derived(findPath(currentNode));
+
+	const isLeafBlock = $derived(
 		SlateElement.isElement(currentNode) &&
-		!editor.isInline(currentNode) &&
-		Editor.hasInlines(editor, currentNode);
+			!editor.isInline(currentNode) &&
+			Editor.hasInlines(editor, currentNode)
+	);
 </script>
 
-{#each currentNode.children as child, index (findKey(child))}{#if SlateElement.isElement(child)}<ChildElement
-			{decorations}
-			{selection}
-			element={child}
-			parent={currentNode}
-			{index}
-			{path}
-		/>{:else}<ChildText
-			{decorations}
-			parent={currentNode}
-			text={child}
-			{index}
-			{path}
-			{isLeafBlock}
-		/>{/if}{/each}
+{#each currentNode.children as child, index (findKey(child))}
+	{#if SlateElement.isElement(child)}
+		<ChildElement {decorations} {selection} element={child} parent={currentNode} {index} {path} />
+	{:else}
+		<ChildText {decorations} parent={currentNode} text={child} {index} {path} {isLeafBlock} />
+	{/if}
+{/each}

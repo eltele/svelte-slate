@@ -1,14 +1,16 @@
-<svelte:options immutable />
-
 <script lang="ts">
 	import type { Text } from 'slate';
-	import { beforeUpdate } from 'svelte';
 
-	export let leaf: Text;
-	export let isTrailing = false;
+	interface Props {
+		leaf: Text;
+		isTrailing: boolean;
+	}
+
+	let { leaf, isTrailing }: Props = $props();
 
 	let ref: HTMLSpanElement;
-	beforeUpdate(() => {
+
+	$effect.pre(() => {
 		if (ref) {
 			ref.textContent = leaf.text;
 		}

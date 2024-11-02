@@ -1,8 +1,10 @@
-<svelte:options immutable />
-
 <script lang="ts">
-	export let length = 0;
-	export let isLineBreak = false;
+	interface Props {
+		length?: number;
+		isLineBreak?: boolean;
+	}
+
+	let { length = 0, isLineBreak = false }: Props = $props();
 </script>
 
 <span data-slate-zero-width={isLineBreak ? 'n' : 'z'} data-slate-length={length}
